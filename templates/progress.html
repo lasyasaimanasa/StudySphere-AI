@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Progress - StudySphere AI{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-section">
+        <h1>Learning Analytics</h1>
+        <p class="text-secondary">Track your progress and identify areas for improvement</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">0%</div>
+            <div class="stat-label">Overall Mastery</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Topics Mastered</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Assessments Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Study Hours</div>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h3>Topic Mastery</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">📊</div>
+                <div class="empty-state-title">No assessment data yet</div>
+                <div class="empty-state-description">Complete your first quiz to see topic mastery breakdown.</div>
+                <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take Quiz</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Strong Topics</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">💪</div>
+                <div class="empty-state-title">No strong topics yet</div>
+                <div class="empty-state-description">Complete assessments to identify your strengths.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Topics Needing Attention</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <div class="empty-state-title">No assessment data yet</div>
+                <div class="empty-state-description">Complete assessments to identify topics that need attention.</div>
+                <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take Quiz</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recent Assessment Performance</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">📈</div>
+                <div class="empty-state-title">No recent assessments</div>
+                <div class="empty-state-description">Take quizzes to track your performance over time.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--spacing-xl);">
+        <h3>Recommended Focus</h3>
+        <div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <div class="empty-state-title">Start your learning journey</div>
+            <div class="empty-state-description">Upload materials and complete assessments to get personalized focus recommendations.</div>
+            <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

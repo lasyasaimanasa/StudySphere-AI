@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - StudySphere AI{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-section">
+        <h1>Good to see you again! 👋</h1>
+        <p class="text-secondary">Continue your learning journey.</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">0%</div>
+            <div class="stat-label">Learning Mastery</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Topics Studied</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Materials</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Weak Topics</div>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h3>Continue Learning</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">📖</div>
+                <div class="empty-state-title">No learning data yet</div>
+                <div class="empty-state-description">Upload materials and complete assessments to track your progress.</div>
+                <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recent Materials</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-title">No materials uploaded</div>
+                <div class="empty-state-description">Upload a textbook, lecture slide deck or lecture video to begin.</div>
+                <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Material</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Weak Topics</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">🎯</div>
+                <div class="empty-state-title">No assessment data yet</div>
+                <div class="empty-state-description">Complete your first assessment to see topics that need attention.</div>
+                <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take Quiz</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recommended Next Step</h3>
+            <div class="empty-state">
+                <div class="empty-state-icon">💡</div>
+                <div class="empty-state-title">Start your learning journey</div>
+                <div class="empty-state-description">Upload course materials to get personalized recommendations.</div>
+                <a href="{{ url_for('materials') }}" class="btn btn-primary">Get Started</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

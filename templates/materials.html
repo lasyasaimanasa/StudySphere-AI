@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Materials - StudySphere AI{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-section">
+        <h1>Your Learning Materials</h1>
+        <p class="text-secondary">Upload and manage your course materials</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="card" style="margin-bottom: var(--spacing-xl); padding: var(--spacing-md);
+                    {% if category == 'error' %}
+                        background-color: #fee2e2; border-color: #ef4444;
+                    {% else %}
+                        background-color: #d1fae5; border-color: #10b981;
+                    {% endif %}">
+                    <p style="margin: 0; color: {% if category == 'error' %}#ef4444{% else %}#10b981{% endif %};">{{ message }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card" style="margin-bottom: var(--spacing-xl);">
+        <h3>Upload Course Material</h3>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">Supported formats: PDF (Max 16MB)</p>
+
+        <form method="POST" enctype="multipart/form-data" style="margin-bottom: var(--spacing-lg);">
+            <div class="upload-area" id="uploadArea" style="padding: var(--spacing-2xl);">
+                <input type="file" name="file" id="fileInput" accept=".pdf" style="display: none;">
+                <div class="upload-area-icon">📤</div>
+                <div class="upload-area-title">Drag and drop your PDF here</div>
+                <div class="upload-area-description">or click to browse</div>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select PDF</button>
+                <div id="selectedFileName" style="margin-top: var(--spacing-md); font-size: var(--font-size-sm); color: var(--text-secondary);"></div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--spacing-lg);">Upload Material</button>
+        </form>
+
+        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md); flex-wrap: wrap;">
+            <span class="badge badge-primary">PDF</span>
+            <span class="badge badge-warning">PPTX (Coming Soon)</span>
+            <span class="badge badge-warning">Video (Coming Soon)</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Your Materials</h3>
+        {% if materials %}
+            <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
+                {% for material in materials %}
+                    <div style="padding: var(--spacing-lg); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+                        background-color: var(--bg-secondary);">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--spacing-sm);">
+                            <div>
+                                <h4 style="font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); margin-bottom: var(--spacing-xs);">
+                                    {{ material.filename }}
+                                </h4>
+                                <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0;">
+                                    {{ material.file_type|upper }} • {{ material.page_count }} pages • {{ material.chunk_count }} chunks
+                                </p>
+                            </div>
+                            <span class="badge
+                                {% if material.processing_status == 'processed' %}
+                                    badge-success
+                                {% elif material.processing_status == 'processing' %}
+                                    badge-warning
+                                {% else %}
+                                    badge-danger
+                                {% endif %}">
+                                {{ material.processing_status|capitalize }}
+                            </span>
+                        </div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">
+                            Uploaded: {{ material.uploaded_at if material.uploaded_at else 'N/A' }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-title">No learning materials yet</div>
+                <div class="empty-state-description">Upload a PDF textbook or lecture slide deck to begin.</div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

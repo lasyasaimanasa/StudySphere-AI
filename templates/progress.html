@@ -1,81 +1,50 @@
 {% extends "base.html" %}
-
 {% block title %}Progress - StudySphere AI{% endblock %}
-
 {% block content %}
 <div class="container">
     <div class="header-section">
-        <h1>Learning Analytics</h1>
-        <p class="text-secondary">Track your progress and identify areas for improvement</p>
+        <h1>Learning Progress</h1>
+        <p class="text-secondary">Progress is calculated from submitted quiz answers across this project.</p>
     </div>
-
+    {% if progress.overall.assessments_completed %}
     <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-value">0%</div>
-            <div class="stat-label">Overall Mastery</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Topics Mastered</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Assessments Completed</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Study Hours</div>
-        </div>
+        <div class="stat-card"><div class="stat-value">{{ progress.overall.accuracy }}%</div><div class="stat-label">Overall Quiz Accuracy</div></div>
+        <div class="stat-card"><div class="stat-value">{{ progress.overall.correct_answers }}/{{ progress.overall.answered_questions }}</div><div class="stat-label">Correct Answers</div></div>
+        <div class="stat-card"><div class="stat-value">{{ progress.topics|length }}</div><div class="stat-label">Topics Practiced</div></div>
+        <div class="stat-card"><div class="stat-value">{{ progress.overall.assessments_completed }}</div><div class="stat-label">Assessments Completed</div></div>
     </div>
-
-    <div class="grid grid-2">
-        <div class="card">
-            <h3>Topic Mastery</h3>
-            <div class="empty-state">
-                <div class="empty-state-icon">📊</div>
-                <div class="empty-state-title">No assessment data yet</div>
-                <div class="empty-state-description">Complete your first quiz to see topic mastery breakdown.</div>
-                <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take Quiz</a>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Strong Topics</h3>
-            <div class="empty-state">
-                <div class="empty-state-icon">💪</div>
-                <div class="empty-state-title">No strong topics yet</div>
-                <div class="empty-state-description">Complete assessments to identify your strengths.</div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Topics Needing Attention</h3>
-            <div class="empty-state">
-                <div class="empty-state-icon">⚠️</div>
-                <div class="empty-state-title">No assessment data yet</div>
-                <div class="empty-state-description">Complete assessments to identify topics that need attention.</div>
-                <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take Quiz</a>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Recent Assessment Performance</h3>
-            <div class="empty-state">
-                <div class="empty-state-icon">📈</div>
-                <div class="empty-state-title">No recent assessments</div>
-                <div class="empty-state-description">Take quizzes to track your performance over time.</div>
-            </div>
-        </div>
+    {% else %}
+    <div class="card empty-state">
+        <div class="empty-state-icon">📈</div><div class="empty-state-title">Your progress starts with a quiz</div>
+        <div class="empty-state-description">Complete an assessment to see real accuracy, topic mastery, and study recommendations. No scores are estimated.</div>
+        <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take a Quiz</a>
     </div>
-
+    {% endif %}
+    {% if progress.topics %}
     <div class="card" style="margin-top: var(--spacing-xl);">
-        <h3>Recommended Focus</h3>
-        <div class="empty-state">
-            <div class="empty-state-icon">🎯</div>
-            <div class="empty-state-title">Start your learning journey</div>
-            <div class="empty-state-description">Upload materials and complete assessments to get personalized focus recommendations.</div>
-            <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials</a>
-        </div>
+        <h3>Topic Accuracy and Mastery</h3>
+        <p class="text-secondary">Mastery requires at least {{ progress.mastery_rule.minimum_answered_questions }} answered questions and {{ progress.mastery_rule.mastery_accuracy_percent }}% accuracy. Fewer answers means insufficient evidence.</p>
+        <div class="table-responsive"><table class="data-table"><thead><tr><th>Topic</th><th>Correct</th><th>Answered</th><th>Accuracy</th><th>Status</th></tr></thead><tbody>
+        {% for topic in progress.topics %}<tr><td>{{ topic.topic }}</td><td>{{ topic.correct_answers }}</td><td>{{ topic.answered_questions }}</td><td>{{ topic.accuracy }}%</td><td>{% if topic.mastery_status == 'mastered' %}Mastered{% elif topic.mastery_status == 'needs_revision' %}Needs revision{% else %}Insufficient evidence{% endif %}</td></tr>{% endfor %}
+        </tbody></table></div>
     </div>
+    {% endif %}
+    {% if progress.weak_topics %}
+    <div class="card" style="margin-top: var(--spacing-xl);">
+        <h3>Topics Needing Revision</h3>
+        {% for topic in progress.weak_topics %}
+        <section class="recommendation-item" style="padding: var(--spacing-md) 0; border-bottom: 1px solid var(--border-color);">
+            <h4>{{ topic.topic }} — {{ topic.accuracy }}% ({{ topic.correct_answers }}/{{ topic.answered_questions }} correct)</h4>
+            {% if topic.recommendations %}<ul>{% for item in topic.recommendations %}<li><a href="{{ url_for('materials') }}">{{ item.source_file }}</a>, {{ item.location_type }} {{ item.location_value }}{% if item.content %}<p class="text-secondary">{{ item.content|truncate(240) }}</p>{% endif %}</li>{% endfor %}</ul>
+            {% else %}<p class="text-secondary">{{ topic.recommendation_message }}</p>{% endif %}
+        </section>{% endfor %}
+    </div>
+    {% elif progress.overall.assessments_completed %}
+    <div class="card" style="margin-top: var(--spacing-xl);"><h3>Topics Needing Revision</h3><p class="text-secondary">No topics currently meet the revision threshold. Topics with fewer than {{ progress.mastery_rule.minimum_answered_questions }} answers are not labeled weak.</p></div>
+    {% endif %}
+    {% if progress.recent_assessments %}
+    <div class="card" style="margin-top: var(--spacing-xl);"><h3>Recent Assessment Performance</h3><ul>{% for item in progress.recent_assessments %}<li>{{ item.topic }} — {{ item.score }}/{{ item.total_questions }} ({{ item.completed_at }})</li>{% endfor %}</ul></div>
+    {% endif %}
+    <p class="text-secondary" style="margin-top: var(--spacing-lg);">Progress is project-wide in the current app because user authentication and per-user assessment ownership are not implemented.</p>
 </div>
 {% endblock %}

@@ -5,56 +5,50 @@
 {% block content %}
 <div class="container">
     <div class="header-section">
-        <h1>Adaptive Quiz</h1>
-        <p class="text-secondary">Generate personalized assessments based on your learning materials</p>
+        <h1>Source-Grounded Quiz</h1>
+        <p class="text-secondary">Generate multiple-choice assessments from your indexed learning materials.</p>
     </div>
 
-    <div class="card" style="max-width: 600px; margin: 0 auto var(--spacing-xl);">
+    <div class="card" style="max-width: 760px; margin: 0 auto var(--spacing-xl);">
         <h3 style="margin-bottom: var(--spacing-xl);">Quiz Configuration</h3>
-
-        <div class="form-group">
-            <label class="form-label">Subject</label>
-            <input type="text" class="form-input" placeholder="e.g., Computer Science">
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Topic</label>
-            <input type="text" class="form-input" placeholder="e.g., Machine Learning">
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Difficulty</label>
-            <select class="form-select">
-                <option value="">Select difficulty</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Number of Questions</label>
-            <input type="number" class="form-input" placeholder="e.g., 10" min="1" max="50">
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Question Type</label>
-            <select class="form-select">
-                <option value="">Select question type</option>
-                <option value="mcq">Multiple Choice (MCQ)</option>
-                <option value="short-answer">Short Answer</option>
-                <option value="numerical">Numerical</option>
-            </select>
-        </div>
-
-        <button class="btn btn-primary" style="width: 100%;">Generate Adaptive Quiz</button>
+        <form id="assessmentForm">
+            <div class="form-group">
+                <label class="form-label" for="assessmentTopic">Topic</label>
+                <input id="assessmentTopic" name="topic" type="text" class="form-input"
+                       maxlength="200" placeholder="e.g., database normalization" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="assessmentMaterial">Learning material</label>
+                <select id="assessmentMaterial" name="material_id" class="form-select">
+                    <option value="">Search all indexed materials</option>
+                    {% for material in materials %}
+                        {% if material.processing_status == 'processed' %}
+                            <option value="{{ material.id }}">{{ material.filename }} ({{ material.file_type|upper }})</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="assessmentDifficulty">Difficulty</label>
+                <select id="assessmentDifficulty" name="difficulty" class="form-select" required>
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="assessmentCount">Number of questions (5–10)</label>
+                <input id="assessmentCount" name="question_count" type="number" class="form-input"
+                       min="5" max="10" value="5" required>
+            </div>
+            <button id="generateAssessmentButton" type="submit" class="btn btn-primary" style="width: 100%;">
+                Generate Quiz
+            </button>
+        </form>
+        <div id="assessmentStatus" role="status" aria-live="polite" style="margin-top: var(--spacing-md);"></div>
     </div>
 
-    <div class="card">
-        <h3>Information</h3>
-        <p style="color: var(--text-secondary);">
-            Complete assessments to build your personalized learning profile. Quizzes adapt to your knowledge level and help identify areas for improvement.
-        </p>
-    </div>
+    <div id="assessmentQuestions" class="card" style="display: none; max-width: 900px; margin: 0 auto var(--spacing-xl);"></div>
+    <div id="assessmentResults" class="card" style="display: none; max-width: 900px; margin: 0 auto;"></div>
 </div>
 {% endblock %}

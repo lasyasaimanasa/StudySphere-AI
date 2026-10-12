@@ -26,23 +26,28 @@
 
     <div class="card" style="margin-bottom: var(--spacing-xl);">
         <h3>Upload Course Material</h3>
-        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">Supported formats: PDF (Max 16MB)</p>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">Supported formats: PDF, PPTX, and timestamped TXT transcripts (Max {{ config.MAX_CONTENT_LENGTH // (1024 * 1024) }} MB)</p>
 
-        <form method="POST" enctype="multipart/form-data" style="margin-bottom: var(--spacing-lg);">
+        <form id="materialUploadForm" method="POST" enctype="multipart/form-data" style="margin-bottom: var(--spacing-lg);">
             <div class="upload-area" id="uploadArea" style="padding: var(--spacing-2xl);">
-                <input type="file" name="file" id="fileInput" accept=".pdf" style="display: none;">
+                <input type="file" name="file" id="fileInput" accept=".pdf,.pptx,.txt" style="display: none;">
                 <div class="upload-area-icon">📤</div>
-                <div class="upload-area-title">Drag and drop your PDF here</div>
+                <div class="upload-area-title">Drag and drop your PDF, PPTX, or timestamped transcript here</div>
                 <div class="upload-area-description">or click to browse</div>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select PDF</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
                 <div id="selectedFileName" style="margin-top: var(--spacing-md); font-size: var(--font-size-sm); color: var(--text-secondary);"></div>
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--spacing-lg);">Upload Material</button>
+            <button id="materialUploadButton" type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--spacing-lg);">Upload Material</button>
+            <div id="uploadProgress" class="loading-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" style="display: none; margin-top: var(--spacing-md);">
+                <span class="spinner" aria-hidden="true"></span>
+                <span>Uploading and processing your material. Large files may take several minutes; please keep this page open.</span>
+            </div>
         </form>
 
         <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md); flex-wrap: wrap;">
             <span class="badge badge-primary">PDF</span>
-            <span class="badge badge-warning">PPTX (Coming Soon)</span>
+            <span class="badge badge-primary">PPTX</span>
+            <span class="badge badge-primary">TXT transcript [HH:MM:SS]</span>
             <span class="badge badge-warning">Video (Coming Soon)</span>
         </div>
     </div>
@@ -60,7 +65,7 @@
                                     {{ material.filename }}
                                 </h4>
                                 <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0;">
-                                    {{ material.file_type|upper }} • {{ material.page_count }} pages • {{ material.chunk_count }} chunks
+                                    {{ material.file_type|upper }} • {{ material.page_count }} {% if material.file_type == 'pptx' %}slides{% elif material.file_type == 'transcript' %}transcript segments{% else %}pages{% endif %} • {{ material.chunk_count }} chunks
                                 </p>
                             </div>
                             <span class="badge
@@ -84,7 +89,7 @@
             <div class="empty-state">
                 <div class="empty-state-icon">📚</div>
                 <div class="empty-state-title">No learning materials yet</div>
-                <div class="empty-state-description">Upload a PDF textbook or lecture slide deck to begin.</div>
+                <div class="empty-state-description">Upload a PDF textbook, lecture slide deck, or timestamped transcript to begin.</div>
             </div>
         {% endif %}
     </div>

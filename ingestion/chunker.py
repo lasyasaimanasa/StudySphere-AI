@@ -47,6 +47,13 @@ class Chunker:
                     "page": page_num,
                     "chunk_index": global_chunk_index
                 }
+                # Typed source locators are optional so existing PDF and slide
+                # chunk shapes remain unchanged. Transcript locators must follow
+                # every split chunk from their timestamped section.
+                if "location_type" in page_data:
+                    chunk["location_type"] = page_data["location_type"]
+                if "location_value" in page_data:
+                    chunk["location_value"] = page_data["location_value"]
                 chunks.append(chunk)
                 global_chunk_index += 1
 

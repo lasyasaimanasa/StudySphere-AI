@@ -6,36 +6,106 @@
 <div class="container" style="max-width: 1400px;">
     <div class="header-section">
         <h1>AI Tutor</h1>
-        <p class="text-secondary">Ask questions about your uploaded learning material</p>
+        <p class="text-secondary">Ask questions about your uploaded learning materials with source-grounded passage retrieval</p>
+    </div>
+
+    <div class="card" style="margin-bottom: var(--spacing-lg);">
+        <h3>Study with a YouTube lecture</h3>
+        <p class="text-secondary">Save a lecture link with its already-indexed transcript. StudySphere does not fetch captions or download video/audio.</p>
+        <div class="form-group">
+            <label class="form-label" for="savedYouTubeLecture">Saved lectures</label>
+            <select id="savedYouTubeLecture" class="form-select">
+                <option value="">Select a saved lecture</option>
+                {% for lecture in youtube_lectures %}
+                    <option value="{{ lecture.video_id }}"
+                            data-url="{{ lecture.canonical_url }}"
+                            data-title="{{ lecture.display_title or '' }}"
+                            data-transcript-id="{{ lecture.transcript_material_id or '' }}"
+                            data-transcript-available="{{ 'true' if lecture.transcript_available else 'false' }}">
+                        {{ lecture.display_title or lecture.video_id }}{% if not lecture.transcript_available %} — transcript unavailable{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="youtubeLectureUrl">YouTube lecture URL</label>
+            <input id="youtubeLectureUrl" class="form-input" type="url" inputmode="url" autocomplete="url" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="youtubeTranscriptMaterial">Use indexed timestamped transcript (optional)</label>
+            <select id="youtubeTranscriptMaterial" class="form-select">
+                <option value="">Select an indexed transcript</option>
+                {% for m in materials if m.file_type == 'transcript' %}
+                    <option value="{{ m.id }}">{{ m.filename }}</option>
+                {% endfor %}
+            </select>
+            <small class="text-secondary">Upload authorized timestamped TXT text on the <a href="{{ url_for('materials') }}">Materials page</a> before associating it. Only processed transcripts with timestamped chunks can be saved.</small>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="youtubeLectureTitle">Lecture title (optional)</label>
+            <input id="youtubeLectureTitle" class="form-input" type="text" maxlength="200" placeholder="A name to recognize this lecture">
+        </div>
+        <button class="btn btn-primary" id="openYouTubeLecture" type="button">Validate and open YouTube</button>
+        <button class="btn btn-secondary" id="saveYouTubeLecture" type="button" disabled>Save lecture and transcript</button>
+        <div id="youtubeLectureStatus" role="status" aria-live="polite" style="margin-top: var(--spacing-sm);"></div>
+        <a id="youtubePlayerLink" class="btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>Open official YouTube player</a>
     </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
+        <!-- Knowledge Base Filter Toolbar -->
+        <div class="chat-filter-bar">
+            <div class="chat-filter-group">
+                <span class="chat-filter-label">Target Material:</span>
+                <select id="materialFilter" class="chat-filter-select">
+                    <option value="">All Uploaded Materials</option>
+                    {% if materials %}
+                        {% for m in materials %}
+                            <option value="{{ m.id }}">{{ m.filename }} ({{ m.page_count }} {% if m.file_type == 'pptx' %}slides{% elif m.file_type == 'transcript' %}transcript segments{% else %}pages{% endif %})</option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+            <div class="chat-filter-group">
+                <span class="badge badge-primary" id="activeMaterialBadge">Semantic Index Active</span>
+            </div>
+        </div>
+
         <div class="chat-container">
             <div class="chat-messages" id="chatMessages">
-                <div class="empty-state" style="padding: var(--spacing-3xl);">
+                <div class="empty-state" id="initialEmptyState" style="padding: var(--spacing-3xl);">
                     <div class="empty-state-icon">🤖</div>
-                    <div class="empty-state-title">Your AI tutor will appear here</div>
-                    <div class="empty-state-description">Upload learning material to start asking questions.</div>
-                    <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials</a>
+                    <div class="empty-state-title">Source-Grounded Study Assistant</div>
+                    <div class="empty-state-description" style="max-width: 540px; margin: 0 auto var(--spacing-lg);">
+                        Ask questions about your course content. The system retrieves relevant passages with PDF page, PowerPoint slide, and transcript timestamp citations.
+                    </div>
+                    {% if not materials %}
+                        <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials First</a>
+                    {% else %}
+                        <div style="display: flex; gap: var(--spacing-sm); justify-content: center; flex-wrap: wrap;">
+                            <span class="badge badge-success">Indexed Materials Ready</span>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
 
             <div class="chat-input-container">
-                <input type="text" class="chat-input" id="chatInput" placeholder="Ask a question about your course material...">
-                <button class="btn btn-primary" id="sendButton">Send</button>
+                <input type="text" class="chat-input" id="chatInput" placeholder="Ask a question about your course material (e.g., 'What is data independence?')..." autocomplete="off">
+                <button class="btn btn-primary" id="sendButton">Ask</button>
             </div>
         </div>
     </div>
 
     <div class="card" style="margin-top: var(--spacing-lg);">
-        <h3>Source-Grounded Responses</h3>
+        <h3>Source-Grounded Retrieval Information</h3>
         <p style="color: var(--text-secondary); margin-bottom: var(--spacing-sm);">
-            AI tutor provides answers with citations to your uploaded materials.
+            The Tutor answers questions using retrieved passages from your learning materials and provides source citations.
         </p>
         <div style="display: flex; gap: var(--spacing-md); flex-wrap: wrap;">
-            <span class="badge badge-success">Page citations</span>
-            <span class="badge badge-success">Slide citations</span>
-            <span class="badge badge-success">Timestamp citations</span>
+            <span class="badge badge-success">PDF page citations</span>
+            <span class="badge badge-success">PowerPoint slide citations</span>
+            <span class="badge badge-success">Transcript timestamp citations</span>
+            <span class="badge badge-success">Cosine similarity scoring</span>
+            <span class="badge badge-success">Document filtering</span>
         </div>
     </div>
 </div>

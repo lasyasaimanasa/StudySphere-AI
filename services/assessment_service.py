@@ -1,13 +1,44 @@
 """Source-grounded multiple-choice assessment generation and scoring."""
 
 import json
+import logging
 import re
 import sqlite3
+import time
+import urllib.error
 from typing import Any, Dict, List, Optional
 
 from ai.llm_provider import get_llm_provider
 from database import get_db_connection
 from rag.prompts import get_source_location
+
+logger = logging.getLogger(__name__)
+
+
+def _exception_diagnostic_metadata(exception):
+    pending = [exception]
+    visited = set()
+    class_names = []
+    http_status = None
+
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in visited:
+            continue
+        visited.add(id(current))
+        class_names.append(type(current).__name__)
+
+        if isinstance(current, urllib.error.HTTPError):
+            status = current.code
+            if isinstance(status, int) and not isinstance(status, bool):
+                http_status = status
+
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+
+    return class_names, http_status
 
 
 class AssessmentError(ValueError):
@@ -79,19 +110,34 @@ class AssessmentService:
         sources = self._validated_sources(passages, requested_material_id=material_id)
         if not sources:
             raise AssessmentError("No supported study passages were found for this topic.")
+        sources = sources[:question_count]
 
         prompt = self._build_generation_prompt(topic, difficulty, question_count, sources)
+        provider_started = time.monotonic()
         try:
             generated = self.provider_factory().generate(
                 prompt=prompt,
                 system_prompt=(
-                    "Create an assessment only when every generated field is grounded in the "
-                    "provided passages. Supply exact evidence quotes and use only supplied "
-                    "source_id values. Return JSON only."
+                    "Use only the supplied passages. If support is insufficient, do not create "
+                    "questions. Return JSON only."
                 ),
             )
         except Exception as exc:
+            elapsed_seconds = time.monotonic() - provider_started
+            exception_classes, http_status = _exception_diagnostic_metadata(exc)
+            logger.warning(
+                "Assessment provider call failed: %s after %.2f seconds "
+                "(exception chain: %s; HTTP status: %s)",
+                type(exc).__name__, elapsed_seconds,
+                ", ".join(exception_classes),
+                http_status if http_status is not None else "unavailable",
+            )
             raise AssessmentError("Question generation is unavailable right now.") from exc
+        else:
+            logger.info(
+                "Assessment provider call completed in %.2f seconds",
+                time.monotonic() - provider_started,
+            )
 
         questions = self._validate_generated_questions(
             generated, question_count, sources, topic, difficulty
@@ -204,30 +250,26 @@ class AssessmentService:
         schema = {
             "questions": [{
                 "question": "Question text",
-                "question_evidence": {"source_id": "S1", "quote": "Exact passage quote"},
                 "options": ["A", "B", "C", "D"],
-                "option_evidence": [
-                    {"source_id": "S1", "quote": "Exact passage quote"},
-                    {"source_id": "S1", "quote": "Exact passage quote"},
-                    {"source_id": "S1", "quote": "Exact passage quote"},
-                    {"source_id": "S1", "quote": "Exact passage quote"},
-                ],
                 "correct_option": 0,
-                "answer_evidence": {"source_id": "S1", "quote": "Exact passage quote"},
                 "explanation": "Why the correct option is supported",
-                "explanation_evidence": {"source_id": "S1", "quote": "Exact passage quote"},
+                "evidence": {"source_id": "S1", "quote": "Exact supporting passage quote"},
             }]
         }
         return (
             f"Create exactly {question_count} {difficulty} difficulty multiple-choice questions "
             f"about {topic!r}, using only the passages below. Each question must have exactly "
-            "four distinct options and one correct_option index from 0 to 3. For the question, "
-            "each of the four options, the correct answer, and the explanation, provide a separate "
-            "evidence object containing source_id and an exact quote copied from that passage. "
-            "For each distractor, quote passage text that contradicts it; do not invent distractors "
-            "that the passages cannot distinguish. Use no outside knowledge. If any field cannot "
-            "be supported, do not create the assessment: return {\"questions\": []}. Do not include "
-            "citations, filenames, or locators in question/option/explanation text. Return only JSON "
+            "four distinct options and one correct_option index from 0 to 3. Include one evidence "
+            "object per question with exactly two fields: source_id and quote. The evidence object must not contain any other fields. "
+            "CRITICAL: evidence must be a JSON object/dictionary with keys source_id and quote. "
+            "evidence must NEVER be an array/list. Each question has exactly ONE evidence object. "
+            "Example correct format: {\"evidence\": {\"source_id\": \"S1\", \"quote\": \"exact quote\"}}. "
+            "The quote must directly support both the question and selected correct option; the "
+            "explanation must describe that support. Make distractors plausible but clearly "
+            "incorrect according to the same passage. Use no outside knowledge. If one passage "
+            "cannot support the question and correct option or distinguish the options, return "
+            "{\"questions\": []}. Do not include citations, filenames, or locators in generated "
+            "question, option, or explanation text. Return only JSON "
             f"matching this schema: {json.dumps(schema)}\n\nPASSAGES:\n"
             + "\n\n".join(passages)
         )
@@ -252,8 +294,7 @@ class AssessmentService:
         validated = []
         seen_questions = set()
         allowed_keys = {
-            "question", "question_evidence", "options", "option_evidence",
-            "correct_option", "answer_evidence", "explanation", "explanation_evidence",
+            "question", "options", "correct_option", "explanation", "evidence",
         }
         for item in raw_questions:
             if not isinstance(item, dict) or set(item) != allowed_keys:
@@ -262,10 +303,7 @@ class AssessmentService:
             explanation = item["explanation"]
             options = item["options"]
             correct = item["correct_option"]
-            question_evidence = item["question_evidence"]
-            option_evidence = item["option_evidence"]
-            answer_evidence = item["answer_evidence"]
-            explanation_evidence = item["explanation_evidence"]
+            evidence = item["evidence"]
             if (not isinstance(question, str) or not question.strip()
                     or not isinstance(explanation, str) or not explanation.strip()):
                 raise AssessmentError("Generated questions and explanations must be nonempty text.")
@@ -287,33 +325,10 @@ class AssessmentService:
                 raise AssessmentError("Each generated question must have distinct options.")
             if isinstance(correct, bool) or not isinstance(correct, int) or not 0 <= correct < self.OPTION_COUNT:
                 raise AssessmentError("Each generated question must have one valid correct option.")
-            if not isinstance(option_evidence, list) or len(option_evidence) != self.OPTION_COUNT:
-                raise AssessmentError("Each answer option must have its own evidence quote.")
-            question_source = self._validate_evidence(
-                question_evidence, sources_by_id, "question"
+            answer_evidence = self._validate_evidence(
+                evidence, sources_by_id, "question and correct answer"
             )
-            option_sources = [
-                self._validate_evidence(evidence, sources_by_id, "answer option")
-                for evidence in option_evidence
-            ]
-            answer_source = self._validate_evidence(
-                answer_evidence, sources_by_id, "correct answer"
-            )
-            explanation_source = self._validate_evidence(
-                explanation_evidence, sources_by_id, "explanation"
-            )
-            # Existing schema stores one source locator per question. Require all
-            # field-level evidence to agree on that same retrieved passage.
-            cited_source_ids = {
-                question_source["source_id"], answer_source["source_id"],
-                explanation_source["source_id"],
-                *(source["source_id"] for source in option_sources),
-            }
-            if len(cited_source_ids) != 1:
-                raise AssessmentError(
-                    "Question, options, answer, and explanation must cite the same retrieved passage."
-                )
-            source = sources_by_id[answer_source["source_id"]]
+            source = sources_by_id[answer_evidence["source_id"]]
             validated.append({
                 "question": question.strip(),
                 "options": [" ".join(option.split()) for option in options],
@@ -321,6 +336,7 @@ class AssessmentService:
                 "explanation": explanation.strip(),
                 "topic": topic,
                 "difficulty": difficulty,
+                "answer_evidence": answer_evidence,
                 "source": source,
             })
         return validated
@@ -331,6 +347,12 @@ class AssessmentService:
 
     def _validate_evidence(self, evidence, sources_by_id, field_name):
         """Check evidence schema, retrieved source identity, and exact quote presence."""
+        # Normalize single-item list to dict for robustness
+        if isinstance(evidence, list):
+            if len(evidence) == 1 and isinstance(evidence[0], dict):
+                evidence = evidence[0]
+            else:
+                raise AssessmentError(f"Generated {field_name} evidence is malformed.")
         if not isinstance(evidence, dict) or set(evidence) != {"source_id", "quote"}:
             raise AssessmentError(f"Generated {field_name} evidence is malformed.")
         source_id = evidence["source_id"]

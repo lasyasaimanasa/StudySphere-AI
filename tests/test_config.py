@@ -42,7 +42,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertEqual(loaded_config.LLM_PROVIDER, 'ollama')
         self.assertEqual(loaded_config.OLLAMA_BASE_URL, 'http://localhost:11434')
         self.assertEqual(loaded_config.OLLAMA_MODEL, 'qwen2.5:1.5b')
-        self.assertEqual(loaded_config.OLLAMA_TIMEOUT, 120)
+        self.assertEqual(loaded_config.OLLAMA_TIMEOUT, 300)
         self.assertIsNone(loaded_config.OPENAI_API_KEY)
 
     def test_ollama_timeout_is_configurable(self):
@@ -52,6 +52,12 @@ class TestConfiguration(unittest.TestCase):
             loaded_config = importlib.reload(config).Config
 
         self.assertEqual(loaded_config.OLLAMA_TIMEOUT, 75)
+
+    def test_ollama_timeout_defaults_to_300_when_unset(self):
+        with patch('dotenv.load_dotenv'), patch.dict(os.environ, clear=True):
+            loaded_config = importlib.reload(config).Config
+
+        self.assertEqual(loaded_config.OLLAMA_TIMEOUT, 300)
 
     def test_ollama_timeout_rejects_non_positive_or_non_integer_values(self):
         for timeout in ('slow', '0', '-5'):

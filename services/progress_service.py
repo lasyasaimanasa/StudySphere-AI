@@ -16,6 +16,17 @@ class ProgressService:
         self.database_path = database_path
         self.embedding_service = embedding_service
 
+    @classmethod
+    def _evidence_level(cls, answered_questions: int) -> str:
+        """Return a transparent count-based label; it is not a statistical confidence score."""
+        if answered_questions < cls.MINIMUM_TOPIC_ANSWERS:
+            return "insufficient"
+        if answered_questions < 10:
+            return "limited"
+        if answered_questions < 20:
+            return "moderate"
+        return "strong"
+
     def _connection(self):
         if self.database_path:
             connection = sqlite3.connect(self.database_path)
@@ -55,12 +66,15 @@ class ProgressService:
                 topic = {
                     "topic": row["topic"], "correct_answers": correct,
                     "answered_questions": answered, "accuracy": accuracy,
+                    "evidence_level": self._evidence_level(answered),
                     "mastery_status": status,
                 }
                 topic_rows.append(topic)
                 if status == "needs_revision":
                     weak_topics.append(topic.copy())
-            weak_topics.sort(key=lambda item: (item["accuracy"], -item["answered_questions"], item["topic"].casefold()))
+            weak_topics.sort(
+                key=lambda item: (item["accuracy"], -item["answered_questions"], item["topic"].casefold())
+            )
             total_correct = sum(int(row["score"]) for row in attempts)
             total_answered = sum(int(row["total_questions"]) for row in attempts)
             overall = round(total_correct * 100.0 / total_answered, 2) if total_answered else None
@@ -96,6 +110,7 @@ class ProgressService:
             except Exception:
                 passages = []
             recommendations = []
+            seen_recommendations = set()
             for item in passages if isinstance(passages, list) else []:
                 if not isinstance(item, dict):
                     continue
@@ -129,8 +144,17 @@ class ProgressService:
                     "location_type": loc_type, "location_value": str(loc_value),
                     "content": source["content"],
                 }
-                if rec not in recommendations:
-                    recommendations.append(rec)
+                rec_key = (
+                    rec["material_id"],
+                    rec["source_file"],
+                    rec["location_type"],
+                    rec["location_value"],
+                    rec["content"],
+                )
+                if rec_key in seen_recommendations:
+                    continue
+                seen_recommendations.add(rec_key)
+                recommendations.append(rec)
             topic["recommendations"] = recommendations
             topic["recommendation_message"] = (
                 "Review these indexed passages." if recommendations

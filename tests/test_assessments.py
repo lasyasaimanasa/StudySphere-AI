@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import database
@@ -54,32 +55,18 @@ def generated_questions(count=5, source_id="S1"):
     return {
         "questions": [{
             "question": f"Which task does a DBMS perform, item {index}?",
-            "question_evidence": {
-                "source_id": source_id,
-                "quote": "A DBMS stores, manages, and retrieves data.",
-            },
             "options": [
                 "A DBMS stores data.",
                 "A DBMS is an operating system.",
                 "A DBMS is a compiler.",
                 "A DBMS is a spreadsheet application.",
             ],
-            "option_evidence": [
-                {"source_id": source_id, "quote": "A DBMS stores, manages, and retrieves data."},
-                {"source_id": source_id, "quote": "A DBMS is not an operating system"},
-                {"source_id": source_id, "quote": "not an operating system, compiler"},
-                {"source_id": source_id, "quote": "compiler, or spreadsheet application."},
-            ],
             "correct_option": 0,
-            "answer_evidence": {
+            "evidence": {
                 "source_id": source_id,
                 "quote": "A DBMS stores, manages, and retrieves data.",
             },
             "explanation": "The retrieved passage directly supports the correct statement.",
-            "explanation_evidence": {
-                "source_id": source_id,
-                "quote": "A DBMS stores, manages, and retrieves data.",
-            },
         } for index in range(count)]
     }
 
@@ -113,6 +100,17 @@ class AssessmentTestBase(unittest.TestCase):
             "database management", 5, "medium"
         )
 
+    def passage_for_page(self, page_number, source_file="dbms.pdf"):
+        template = self.embedding.passages[0]
+        return {
+            **template,
+            "chunk_id": 100 + page_number,
+            "source_file": source_file,
+            "page_number": page_number,
+            "location_value": str(page_number),
+            "content": f"{template['content']} Supporting detail for page {page_number}.",
+        }
+
     def answers_for(self, assessment, choices=None):
         choices = choices or {}
         return [{
@@ -132,7 +130,15 @@ class TestAssessmentGenerationAndScoring(AssessmentTestBase):
         self.assertNotIn("explanation", assessment["questions"][0])
         self.assertEqual(self.embedding.calls[0][0], "database management")
         self.assertIn("[S1] dbms.pdf, page 4", self.provider.calls[0][0])
-        self.assertIn("each of the four options", self.provider.calls[0][0])
+        self.assertIn("four distinct options", self.provider.calls[0][0])
+        self.assertIn("exactly two fields: source_id and quote", self.provider.calls[0][0])
+        self.assertIn("evidence must be a JSON object/dictionary", self.provider.calls[0][0])
+        self.assertIn("evidence must NEVER be an array/list", self.provider.calls[0][0])
+        self.assertNotIn('"answer_evidence"', self.provider.calls[0][0])
+        self.assertIn('"evidence": {"source_id": "S1", "quote": "Exact supporting passage quote"}', self.provider.calls[0][0])
+        self.assertNotIn('"question_evidence"', self.provider.calls[0][0])
+        self.assertNotIn('"option_evidence"', self.provider.calls[0][0])
+        self.assertNotIn('"explanation_evidence"', self.provider.calls[0][0])
 
         connection = sqlite3.connect(self.database_path)
         row = connection.execute(
@@ -154,6 +160,63 @@ class TestAssessmentGenerationAndScoring(AssessmentTestBase):
         )
         self.assertEqual(self.embedding.calls[0][2], 1)
 
+    def test_prompt_uses_first_five_valid_ranked_sources_with_sequential_ids(self):
+        self.embedding.passages = [
+            self.passage_for_page(1),
+            self.passage_for_page(99, source_file="missing.pdf"),
+            self.passage_for_page(2),
+            self.passage_for_page(3),
+            self.passage_for_page(4),
+            self.passage_for_page(5),
+            self.passage_for_page(6),
+        ]
+
+        self.create_assessment()
+
+        prompt = self.provider.calls[0][0]
+        self.assertEqual(self.embedding.calls[0], ("database management", 15, None))
+        for source_id, page_number in enumerate(range(1, 6), start=1):
+            self.assertIn(
+                f"[S{source_id}] dbms.pdf, page {page_number}:",
+                prompt,
+            )
+        self.assertNotIn("missing.pdf", prompt)
+        self.assertNotIn("[S6] dbms.pdf, page 6:", prompt)
+
+    def test_evidence_cannot_cite_a_source_excluded_from_the_prompt(self):
+        self.embedding.passages = [self.passage_for_page(page) for page in range(1, 7)]
+        excluded_source_output = json.dumps(generated_questions(source_id="S6"))
+        service = AssessmentService(
+            self.database_path,
+            self.embedding,
+            provider_factory=lambda: MockProvider(excluded_source_output),
+        )
+
+        with self.assertRaisesRegex(AssessmentError, "unsupported source passage"):
+            service.create_assessment("database management", 5, "medium")
+
+        connection = sqlite3.connect(self.database_path)
+        assessment_count = connection.execute(
+            "SELECT COUNT(*) FROM assessments"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(assessment_count, 0)
+
+    def test_answer_evidence_is_derived_from_validated_correct_option(self):
+        generated = generated_questions()
+        generated_question = generated["questions"][0]
+        sources = self.service._validated_sources(self.embedding.passages)
+
+        validated = self.service._validate_generated_questions(
+            json.dumps(generated), 5, sources, "database management", "medium"
+        )
+
+        self.assertEqual(
+            validated[0]["answer_evidence"],
+            generated_question["evidence"],
+        )
+        self.assertEqual(validated[0]["source"]["source_id"], "S1")
+
     def test_rejects_invalid_generation_and_unsupported_source_reference(self):
         for output in (
             "not json",
@@ -166,7 +229,7 @@ class TestAssessmentGenerationAndScoring(AssessmentTestBase):
                 ).create_assessment("topic", 5, "easy")
 
         invalid_source = generated_questions()
-        invalid_source["questions"][0]["answer_evidence"]["source_id"] = "invented"
+        invalid_source["questions"][0]["evidence"]["source_id"] = "invented"
         with self.assertRaisesRegex(AssessmentError, "unsupported source"):
             AssessmentService(
                 self.database_path, self.embedding,
@@ -191,38 +254,117 @@ class TestAssessmentGenerationAndScoring(AssessmentTestBase):
         connection.close()
 
     def test_rejects_fabricated_evidence_for_each_question_component(self):
-        cases = (
-            ("question_evidence", "question"),
-            ("answer_evidence", "correct answer"),
-            ("explanation_evidence", "explanation"),
+        unsupported_quote = generated_questions()
+        unsupported_quote["questions"][0]["evidence"]["quote"] = (
+            "fabricated unsupported evidence"
         )
-        for field, expected_error in cases:
-            output = generated_questions()
-            output["questions"][0][field]["quote"] = "fabricated unsupported evidence"
-            with self.subTest(field=field), self.assertRaisesRegex(AssessmentError, expected_error):
-                AssessmentService(
-                    self.database_path, self.embedding,
-                    provider_factory=lambda output=output: MockProvider(json.dumps(output)),
-                ).create_assessment("topic", 5, "easy")
-
-    def test_rejects_unsupported_answer_option_and_invalid_option_citation(self):
-        unsupported = generated_questions()
-        unsupported["questions"][0]["option_evidence"][2]["quote"] = "made up quote"
-        for generated, message in (
-            (unsupported, "answer option evidence quote"),
-        ):
-            with self.subTest(message=message), self.assertRaisesRegex(AssessmentError, message):
-                AssessmentService(
-                    self.database_path, self.embedding,
-                    provider_factory=lambda generated=generated: MockProvider(json.dumps(generated)),
-                ).create_assessment("topic", 5, "easy")
+        with self.assertRaisesRegex(AssessmentError, "evidence quote was not found"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(unsupported_quote)),
+            ).create_assessment("topic", 5, "easy")
 
         bad_source_id = generated_questions()
-        bad_source_id["questions"][0]["option_evidence"][0]["source_id"] = "S99"
+        bad_source_id["questions"][0]["evidence"]["source_id"] = "S99"
         with self.assertRaisesRegex(AssessmentError, "unsupported source"):
             AssessmentService(
                 self.database_path, self.embedding,
                 provider_factory=lambda: MockProvider(json.dumps(bad_source_id)),
+            ).create_assessment("topic", 5, "easy")
+
+    def test_rejects_legacy_per_field_evidence(self):
+        legacy_evidence = generated_questions()
+        legacy_evidence["questions"][0]["question_evidence"] = {
+            "source_id": "S2",
+            "quote": "A DBMS stores, manages, and retrieves data.",
+        }
+
+        with self.assertRaisesRegex(AssessmentError, "invalid structure"):
+            service = AssessmentService(
+                self.database_path,
+                self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(legacy_evidence)),
+            )
+            service.create_assessment("database management", 5, "medium")
+
+    def test_rejects_missing_evidence_and_invalid_correct_option(self):
+        missing_evidence = generated_questions()
+        del missing_evidence["questions"][0]["evidence"]
+        with self.assertRaisesRegex(AssessmentError, "invalid structure"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(missing_evidence)),
+            ).create_assessment("topic", 5, "easy")
+
+        invalid_correct_option = generated_questions()
+        invalid_correct_option["questions"][0]["correct_option"] = 4
+        with self.assertRaisesRegex(AssessmentError, "valid correct option"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(invalid_correct_option)),
+            ).create_assessment("topic", 5, "easy")
+
+    def test_rejects_evidence_as_list_instead_of_dict(self):
+        list_evidence = generated_questions()
+        list_evidence["questions"][0]["evidence"] = ["S1", "A DBMS stores, manages, and retrieves data."]
+        with self.assertRaisesRegex(AssessmentError, "malformed"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(list_evidence)),
+            ).create_assessment("topic", 5, "easy")
+
+    def test_accepts_correctly_shaped_evidence_dict(self):
+        correctly_shaped = generated_questions()
+        correctly_shaped["questions"][0]["evidence"] = {
+            "source_id": "S1",
+            "quote": "A DBMS stores, manages, and retrieves data.",
+        }
+        assessment = AssessmentService(
+            self.database_path, self.embedding,
+            provider_factory=lambda: MockProvider(json.dumps(correctly_shaped)),
+        ).create_assessment("database management", 5, "medium")
+        self.assertEqual(len(assessment["questions"]), 5)
+
+    def test_normalizes_single_item_list_containing_valid_evidence_dict(self):
+        list_wrapped = generated_questions()
+        list_wrapped["questions"][0]["evidence"] = [{
+            "source_id": "S1",
+            "quote": "A DBMS stores, manages, and retrieves data.",
+        }]
+        assessment = AssessmentService(
+            self.database_path, self.embedding,
+            provider_factory=lambda: MockProvider(json.dumps(list_wrapped)),
+        ).create_assessment("database management", 5, "medium")
+        self.assertEqual(len(assessment["questions"]), 5)
+
+    def test_rejects_multiple_item_evidence_list(self):
+        multi_item_list = generated_questions()
+        multi_item_list["questions"][0]["evidence"] = [
+            {"source_id": "S1", "quote": "First quote"},
+            {"source_id": "S2", "quote": "Second quote"},
+        ]
+        with self.assertRaisesRegex(AssessmentError, "malformed"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(multi_item_list)),
+            ).create_assessment("topic", 5, "easy")
+
+    def test_rejects_empty_evidence_list(self):
+        empty_list = generated_questions()
+        empty_list["questions"][0]["evidence"] = []
+        with self.assertRaisesRegex(AssessmentError, "malformed"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(empty_list)),
+            ).create_assessment("topic", 5, "easy")
+
+    def test_rejects_list_containing_malformed_dict(self):
+        malformed_in_list = generated_questions()
+        malformed_in_list["questions"][0]["evidence"] = [{"source_id": "S1"}]
+        with self.assertRaisesRegex(AssessmentError, "malformed"):
+            AssessmentService(
+                self.database_path, self.embedding,
+                provider_factory=lambda: MockProvider(json.dumps(malformed_in_list)),
             ).create_assessment("topic", 5, "easy")
 
     def test_rejects_duplicate_options_and_invalid_request_bounds(self):
@@ -381,6 +523,55 @@ class TestAssessmentAPI(AssessmentTestBase):
         bad_submit = self.client.post("/api/assessments/99/submit", json={"answers": []})
         self.assertEqual(bad_submit.status_code, 400)
         self.assertEqual(self.client.get("/api/assessments/99").status_code, 404)
+
+    def test_provider_failure_logs_safely_and_preserves_api_response(self):
+        class FailingProvider:
+            def generate(self, prompt, system_prompt=None):
+                failure = RuntimeError("synthetic sensitive prompt and response")
+                timeout = TimeoutError("synthetic sensitive timeout detail")
+                http_error = urllib.error.HTTPError(
+                    "http://localhost:11434/api/chat",
+                    503,
+                    "synthetic sensitive response body",
+                    {},
+                    None,
+                )
+                failure.__cause__ = timeout
+                failure.__context__ = http_error
+                timeout.__context__ = failure
+                raise failure
+
+        self.service.provider_factory = FailingProvider
+        with self.assertLogs("services.assessment_service", level="WARNING") as captured_logs:
+            response = self.client.post("/api/assessments", json={
+                "topic": "database management",
+                "question_count": 5,
+                "difficulty": "medium",
+            })
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json(), {
+            "error": "Question generation is unavailable right now."
+        })
+        log_output = "\n".join(captured_logs.output)
+        self.assertIn("RuntimeError", log_output)
+        self.assertIn("TimeoutError", log_output)
+        self.assertIn("HTTPError", log_output)
+        self.assertIn("HTTP status: 503", log_output)
+        self.assertRegex(log_output, r"after \d+\.\d{2} seconds")
+        for sensitive_value in (
+            "synthetic sensitive prompt and response",
+            "synthetic sensitive timeout detail",
+            "synthetic sensitive response body",
+        ):
+            self.assertNotIn(sensitive_value, log_output)
+
+        connection = sqlite3.connect(self.database_path)
+        assessment_count = connection.execute(
+            "SELECT COUNT(*) FROM assessments"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(assessment_count, 0)
 
     def test_quiz_page_renders_configuration_for_supported_materials(self):
         materials = [{

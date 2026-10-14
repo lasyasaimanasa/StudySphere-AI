@@ -26,7 +26,7 @@ def _get_llm_timeout():
 
 
 def _get_ollama_timeout():
-    return _get_positive_timeout('OLLAMA_TIMEOUT', 120)
+    return _get_positive_timeout('OLLAMA_TIMEOUT', 300)
 
 
 class Config:

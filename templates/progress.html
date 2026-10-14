@@ -23,9 +23,9 @@
     {% if progress.topics %}
     <div class="card" style="margin-top: var(--spacing-xl);">
         <h3>Topic Accuracy and Mastery</h3>
-        <p class="text-secondary">Mastery requires at least {{ progress.mastery_rule.minimum_answered_questions }} answered questions and {{ progress.mastery_rule.mastery_accuracy_percent }}% accuracy. Fewer answers means insufficient evidence.</p>
-        <div class="table-responsive"><table class="data-table"><thead><tr><th>Topic</th><th>Correct</th><th>Answered</th><th>Accuracy</th><th>Status</th></tr></thead><tbody>
-        {% for topic in progress.topics %}<tr><td>{{ topic.topic }}</td><td>{{ topic.correct_answers }}</td><td>{{ topic.answered_questions }}</td><td>{{ topic.accuracy }}%</td><td>{% if topic.mastery_status == 'mastered' %}Mastered{% elif topic.mastery_status == 'needs_revision' %}Needs revision{% else %}Insufficient evidence{% endif %}</td></tr>{% endfor %}
+        <p class="text-secondary">Mastery requires at least {{ progress.mastery_rule.minimum_answered_questions }} answered questions and {{ progress.mastery_rule.mastery_accuracy_percent }}% accuracy. Evidence level reflects answer count, not statistical confidence.</p>
+        <div class="table-responsive"><table class="data-table"><thead><tr><th>Topic</th><th>Correct</th><th>Answered</th><th>Accuracy</th><th>Evidence</th><th>Status</th></tr></thead><tbody>
+        {% for topic in progress.topics %}<tr><td>{{ topic.topic }}</td><td>{{ topic.correct_answers }}</td><td>{{ topic.answered_questions }}</td><td>{{ topic.accuracy }}%</td><td><span class="badge {% if topic.evidence_level == 'strong' %}badge-success{% elif topic.evidence_level == 'moderate' %}badge-primary{% else %}badge-warning{% endif %}">{{ topic.evidence_level|title }}</span></td><td>{% if topic.mastery_status == 'mastered' %}Mastered{% elif topic.mastery_status == 'needs_revision' %}Needs revision{% else %}Insufficient evidence{% endif %}</td></tr>{% endfor %}
         </tbody></table></div>
     </div>
     {% endif %}

@@ -272,6 +272,50 @@ class TestAssessmentGenerationAndScoring(AssessmentTestBase):
                 provider_factory=lambda: MockProvider(json.dumps(bad_source_id)),
             ).create_assessment("topic", 5, "easy")
 
+    def test_accepts_canonically_equivalent_unicode_evidence(self):
+        sources_by_id = {
+            "S1": {"source_id": "S1", "content": "The cafe\u0301 serves coffee daily."}
+        }
+        evidence = {
+            "source_id": "S1",
+            "quote": "The café serves coffee daily.",
+        }
+
+        validated = self.service._validate_evidence(
+            evidence, sources_by_id, "question and correct answer"
+        )
+
+        self.assertIs(validated, evidence)
+
+    def test_rejects_fabricated_quote_for_synthetic_passage(self):
+        sources_by_id = {
+            "S1": {"source_id": "S1", "content": "The library opens at nine each morning."}
+        }
+        evidence = {
+            "source_id": "S1",
+            "quote": "The library closes at midnight every day.",
+        }
+
+        with self.assertRaisesRegex(AssessmentError, "evidence quote was not found"):
+            self.service._validate_evidence(
+                evidence, sources_by_id, "question and correct answer"
+            )
+
+    def test_rejects_quote_from_another_passage_when_attributed_to_source(self):
+        sources_by_id = {
+            "S1": {"source_id": "S1", "content": "The library opens at nine each morning."},
+            "S2": {"source_id": "S2", "content": "The museum displays ancient pottery exhibits."},
+        }
+        evidence = {
+            "source_id": "S1",
+            "quote": "The museum displays ancient pottery exhibits.",
+        }
+
+        with self.assertRaisesRegex(AssessmentError, "evidence quote was not found"):
+            self.service._validate_evidence(
+                evidence, sources_by_id, "question and correct answer"
+            )
+
     def test_rejects_legacy_per_field_evidence(self):
         legacy_evidence = generated_questions()
         legacy_evidence["questions"][0]["question_evidence"] = {
@@ -573,21 +617,21 @@ class TestAssessmentAPI(AssessmentTestBase):
         connection.close()
         self.assertEqual(assessment_count, 0)
 
-    def test_quiz_page_renders_configuration_for_supported_materials(self):
-        materials = [{
-            "id": 1, "filename": "dbms.pdf", "file_type": "pdf",
-            "page_count": 8, "processing_status": "processed",
-        }, {
-            "id": 2, "filename": "pending.pdf", "file_type": "pdf",
-            "page_count": 2, "processing_status": "processing",
-        }]
-        with patch.object(app_module.material_service, "get_user_materials", return_value=materials):
+    def test_quiz_page_displays_temporary_unavailable_message(self):
+        with patch.object(app_module.material_service, "get_user_materials") as get_materials:
             response = self.client.get("/quiz")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'id="assessmentForm"', response.data)
-        self.assertIn(b'dbms.pdf', response.data)
-        self.assertNotIn(b'pending.pdf', response.data)
-        self.assertIn(b'Number of questions (5', response.data)
+        self.assertIn(b"Adaptive Quiz is temporarily unavailable", response.data)
+        self.assertIn(b'href="/dashboard"', response.data)
+        get_materials.assert_not_called()
+
+    def test_user_facing_pages_hide_adaptive_quiz_entry_points(self):
+        for path in ("/", "/dashboard", "/progress"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn(b"Adaptive Quiz", response.data)
+                self.assertNotIn(b'href="/quiz"', response.data)
 
 
 if __name__ == "__main__":

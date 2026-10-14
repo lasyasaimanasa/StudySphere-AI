@@ -69,8 +69,8 @@ class ProgressTests(unittest.TestCase):
         data = self.client.get("/api/progress").get_json()
         self.assertEqual(data["overall"], {"correct_answers": 0, "answered_questions": 0, "accuracy": None, "assessments_completed": 0})
         self.assertEqual(data["topics"], [])
-        self.assertIn(b"No quiz results yet", self.client.get("/dashboard").data)
-        self.assertIn(b"Your progress starts with a quiz", self.client.get("/progress").data)
+        self.assertIn(b"No assessment results yet", self.client.get("/dashboard").data)
+        self.assertIn(b"No assessment history yet", self.client.get("/progress").data)
 
     def test_accuracy_minimum_evidence_repeated_attempts_and_weak_ranking(self):
         self.add_attempt("small sample", [False, False, False, False])

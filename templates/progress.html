@@ -15,9 +15,8 @@
     </div>
     {% else %}
     <div class="card empty-state">
-        <div class="empty-state-icon">📈</div><div class="empty-state-title">Your progress starts with a quiz</div>
-        <div class="empty-state-description">Complete an assessment to see real accuracy, topic mastery, and study recommendations. No scores are estimated.</div>
-        <a href="{{ url_for('quiz') }}" class="btn btn-primary">Take a Quiz</a>
+        <div class="empty-state-icon">📈</div><div class="empty-state-title">No assessment history yet</div>
+        <div class="empty-state-description">Assessment results will appear here when they are available. No scores are estimated.</div>
     </div>
     {% endif %}
     {% if progress.topics %}

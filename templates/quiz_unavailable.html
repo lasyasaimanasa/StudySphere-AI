@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Adaptive Quiz Unavailable - StudySphere AI{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="card empty-state">
+        <div class="empty-state-title">Adaptive Quiz is temporarily unavailable</div>
+        <div class="empty-state-description">Please return to the dashboard to continue using StudySphere AI.</div>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

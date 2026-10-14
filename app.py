@@ -444,8 +444,7 @@ def api_youtube_lectures():
 
 @app.route('/quiz')
 def quiz():
-    materials_list = material_service.get_user_materials(1)
-    return render_template('quiz.html', materials=materials_list)
+    return render_template('quiz_unavailable.html')
 
 
 @app.route('/api/assessments', methods=['POST'])

@@ -5,6 +5,7 @@ import logging
 import re
 import sqlite3
 import time
+import unicodedata
 import urllib.error
 from typing import Any, Dict, List, Optional
 
@@ -343,7 +344,8 @@ class AssessmentService:
 
     @staticmethod
     def _normalize_evidence_text(value):
-        return " ".join(value.split()).casefold()
+        normalized = unicodedata.normalize("NFC", value)
+        return " ".join(normalized.split()).casefold()
 
     def _validate_evidence(self, evidence, sources_by_id, field_name):
         """Check evidence schema, retrieved source identity, and exact quote presence."""

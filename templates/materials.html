@@ -12,13 +12,9 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="card" style="margin-bottom: var(--spacing-xl); padding: var(--spacing-md);
-                    {% if category == 'error' %}
-                        background-color: #fee2e2; border-color: #ef4444;
-                    {% else %}
-                        background-color: #d1fae5; border-color: #10b981;
-                    {% endif %}">
-                    <p style="margin: 0; color: {% if category == 'error' %}#ef4444{% else %}#10b981{% endif %};">{{ message }}</p>
+                <div class="card status-message {% if category == 'error' %}status-message-error{% elif category == 'warning' %}status-message-warning{% else %}status-message-success{% endif %}"
+                     role="{{ 'alert' if category == 'error' else 'status' }}">
+                    <p>{{ message }}</p>
                 </div>
             {% endfor %}
         {% endif %}
@@ -26,12 +22,12 @@
 
     <div class="card" style="margin-bottom: var(--spacing-xl);">
         <h3>Upload Course Material</h3>
-        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">Supported formats: PDF, PPTX, and timestamped TXT transcripts (Max {{ config.MAX_CONTENT_LENGTH // (1024 * 1024) }} MB)</p>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg);">Supported formats: PDF, PPTX, and timestamped TXT transcripts (Max {{ config.MAX_CONTENT_LENGTH // (1024 * 1024) }} MB). Transcript lines must use <code>[HH:MM:SS] spoken text</code>.</p>
 
-        <form id="materialUploadForm" method="POST" enctype="multipart/form-data" style="margin-bottom: var(--spacing-lg);">
-            <div class="upload-area" id="uploadArea" style="padding: var(--spacing-2xl);">
+        <form id="materialUploadForm" class="materials-upload-form" method="POST" enctype="multipart/form-data">
+            <div class="upload-area upload-area-compact" id="uploadArea">
                 <input type="file" name="file" id="fileInput" accept=".pdf,.pptx,.txt" style="display: none;">
-                <div class="upload-area-icon">📤</div>
+                <div class="upload-area-icon" aria-hidden="true">📤</div>
                 <div class="upload-area-title">Drag and drop your PDF, PPTX, or timestamped transcript here</div>
                 <div class="upload-area-description">or click to browse</div>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
@@ -44,27 +40,27 @@
             </div>
         </form>
 
-        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md); flex-wrap: wrap;">
+        <div class="material-type-badges">
             <span class="badge badge-primary">PDF</span>
             <span class="badge badge-primary">PPTX</span>
             <span class="badge badge-primary">TXT transcript [HH:MM:SS]</span>
-            <span class="badge badge-warning">Video (Coming Soon)</span>
+            <span class="badge badge-warning">Direct video transcription is not supported</span>
         </div>
+        <p class="text-secondary">Upload a timestamped transcript you have permission to use. MP4 and other video files are not transcribed automatically.</p>
     </div>
 
     <div class="card">
         <h3>Your Materials</h3>
         {% if materials %}
-            <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
+            <div class="materials-list">
                 {% for material in materials %}
-                    <div style="padding: var(--spacing-lg); border: 1px solid var(--border-color); border-radius: var(--radius-md);
-                        background-color: var(--bg-secondary);">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--spacing-sm);">
+                    <div class="material-item">
+                        <div class="material-item-header">
                             <div>
-                                <h4 style="font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); margin-bottom: var(--spacing-xs);">
+                                <h4 class="material-name">
                                     {{ material.filename }}
                                 </h4>
-                                <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0;">
+                                <p class="material-meta">
                                     {{ material.file_type|upper }} • {{ material.page_count }} {% if material.file_type == 'pptx' %}slides{% elif material.file_type == 'transcript' %}transcript segments{% else %}pages{% endif %} • {{ material.chunk_count }} chunks
                                 </p>
                             </div>
@@ -79,7 +75,7 @@
                                 {{ material.processing_status|capitalize }}
                             </span>
                         </div>
-                        <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">
+                        <div class="material-uploaded-at">
                             Uploaded: {{ material.uploaded_at if material.uploaded_at else 'N/A' }}
                         </div>
                     </div>
@@ -87,7 +83,7 @@
             </div>
         {% else %}
             <div class="empty-state">
-                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-icon" aria-hidden="true">📚</div>
                 <div class="empty-state-title">No learning materials yet</div>
                 <div class="empty-state-description">Upload a PDF textbook, lecture slide deck, or timestamped transcript to begin.</div>
             </div>

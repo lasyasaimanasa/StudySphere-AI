@@ -153,6 +153,9 @@ class TestMaterialUploadRoute(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'PDF, PPTX, and timestamped TXT transcripts (Max 50 MB)', response.data)
+        self.assertIn(b'[HH:MM:SS] spoken text', response.data)
+        self.assertIn(b'Direct video transcription is not supported', response.data)
+        self.assertNotIn(b'Video (Coming Soon)', response.data)
         self.assertIn(b'accept=".pdf,.pptx,.txt"', response.data)
         self.assertNotIn(b'16MB', response.data)
         self.assertIn(b'id="uploadProgress"', response.data)
@@ -296,11 +299,34 @@ class TestMaterialUploadRoute(unittest.TestCase):
         self.assertEqual([row['location_value'] for row in chunks], ['00:00:12', '00:01:25'])
         self.assertEqual([row['source_type'] for row in chunks], ['transcript', 'transcript'])
         self.assertEqual(self.embedding_service.index.ntotal, 2)
+        self.assertEqual(
+            {metadata['location_value'] for metadata in self.embedding_service.metadata},
+            {'00:00:12', '00:01:25'},
+        )
+        self.assertTrue(all(
+            metadata['location_type'] == 'timestamp'
+            for metadata in self.embedding_service.metadata
+        ))
         retrieved = self.embedding_service.search(
             'DBMS stores retrieves data', top_k=2, material_id=material['id'], min_score=0.0
         )
         self.assertTrue(retrieved)
         self.assertTrue(all(result['location_type'] == 'timestamp' for result in retrieved))
+
+    def test_empty_transcript_upload_is_rejected_with_a_clear_message(self):
+        response = self.client.post(
+            '/materials',
+            data={'file': (io.BytesIO(b' \n\n'), 'empty_transcript.txt')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Transcript contains no timestamped text', response.data)
+        connection = sqlite3.connect(self.database_path)
+        material_count = connection.execute('SELECT COUNT(*) FROM materials').fetchone()[0]
+        connection.close()
+        self.assertEqual(material_count, 0)
 
     def test_invalid_transcript_upload_is_not_marked_processed(self):
         response = self.client.post(

@@ -4,7 +4,7 @@
 <div class="container">
     <div class="header-section">
         <h1>Learning Progress</h1>
-        <p class="text-secondary">Progress is calculated from submitted quiz answers across this project.</p>
+        <p class="text-secondary">Progress is calculated from submitted assessment answers across this project.</p>
     </div>
     {% if progress.overall.assessments_completed %}
     <div class="stats-grid">
@@ -15,12 +15,13 @@
     </div>
     {% else %}
     <div class="card empty-state">
-        <div class="empty-state-icon">📈</div><div class="empty-state-title">No assessment history yet</div>
-        <div class="empty-state-description">Assessment results will appear here when they are available. No scores are estimated.</div>
+        <div class="empty-state-icon" aria-hidden="true">📈</div><div class="empty-state-title">No assessment history yet</div>
+        <div class="empty-state-description">There are no submitted assessment results to summarize yet. In the meantime, you can review or manage your learning materials.</div>
+        <a href="{{ url_for('materials') }}" class="btn btn-secondary">Review Learning Materials</a>
     </div>
     {% endif %}
     {% if progress.topics %}
-    <div class="card" style="margin-top: var(--spacing-xl);">
+    <div class="card section-card">
         <h3>Topic Accuracy and Mastery</h3>
         <p class="text-secondary">Mastery requires at least {{ progress.mastery_rule.minimum_answered_questions }} answered questions and {{ progress.mastery_rule.mastery_accuracy_percent }}% accuracy. Evidence level reflects answer count, not statistical confidence.</p>
         <div class="table-responsive"><table class="data-table"><thead><tr><th>Topic</th><th>Correct</th><th>Answered</th><th>Accuracy</th><th>Evidence</th><th>Status</th></tr></thead><tbody>
@@ -29,21 +30,21 @@
     </div>
     {% endif %}
     {% if progress.weak_topics %}
-    <div class="card" style="margin-top: var(--spacing-xl);">
+    <div class="card section-card">
         <h3>Topics Needing Revision</h3>
         {% for topic in progress.weak_topics %}
-        <section class="recommendation-item" style="padding: var(--spacing-md) 0; border-bottom: 1px solid var(--border-color);">
+        <section class="recommendation-item">
             <h4>{{ topic.topic }} — {{ topic.accuracy }}% ({{ topic.correct_answers }}/{{ topic.answered_questions }} correct)</h4>
             {% if topic.recommendations %}<ul>{% for item in topic.recommendations %}<li><a href="{{ url_for('materials') }}">{{ item.source_file }}</a>, {{ item.location_type }} {{ item.location_value }}{% if item.content %}<p class="text-secondary">{{ item.content|truncate(240) }}</p>{% endif %}</li>{% endfor %}</ul>
             {% else %}<p class="text-secondary">{{ topic.recommendation_message }}</p>{% endif %}
         </section>{% endfor %}
     </div>
     {% elif progress.overall.assessments_completed %}
-    <div class="card" style="margin-top: var(--spacing-xl);"><h3>Topics Needing Revision</h3><p class="text-secondary">No topics currently meet the revision threshold. Topics with fewer than {{ progress.mastery_rule.minimum_answered_questions }} answers are not labeled weak.</p></div>
+    <div class="card section-card"><h3>Topics Needing Revision</h3><p class="text-secondary">No topics currently meet the revision threshold. Topics with fewer than {{ progress.mastery_rule.minimum_answered_questions }} answers are not labeled weak.</p></div>
     {% endif %}
     {% if progress.recent_assessments %}
-    <div class="card" style="margin-top: var(--spacing-xl);"><h3>Recent Assessment Performance</h3><ul>{% for item in progress.recent_assessments %}<li>{{ item.topic }} — {{ item.score }}/{{ item.total_questions }} ({{ item.completed_at }})</li>{% endfor %}</ul></div>
+    <div class="card section-card"><h3>Recent Assessment Performance</h3><ul>{% for item in progress.recent_assessments %}<li>{{ item.topic }} — {{ item.score }}/{{ item.total_questions }} ({{ item.completed_at }})</li>{% endfor %}</ul></div>
     {% endif %}
-    <p class="text-secondary" style="margin-top: var(--spacing-lg);">Progress is project-wide in the current app because user authentication and per-user assessment ownership are not implemented.</p>
+    <p class="text-secondary progress-note">Progress is project-wide in the current app because user authentication and per-user assessment ownership are not implemented.</p>
 </div>
 {% endblock %}

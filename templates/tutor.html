@@ -55,7 +55,7 @@
         <!-- Knowledge Base Filter Toolbar -->
         <div class="chat-filter-bar">
             <div class="chat-filter-group">
-                <span class="chat-filter-label">Target Material:</span>
+                <label class="chat-filter-label" for="materialFilter">Target Material:</label>
                 <select id="materialFilter" class="chat-filter-select">
                     <option value="">All Uploaded Materials</option>
                     {% if materials %}
@@ -70,27 +70,32 @@
             </div>
         </div>
 
+        <div id="chatAnnouncement" class="visually-hidden"
+             role="status" aria-live="polite" aria-atomic="true"></div>
         <div class="chat-container">
             <div class="chat-messages" id="chatMessages">
                 <div class="empty-state" id="initialEmptyState" style="padding: var(--spacing-3xl);">
-                    <div class="empty-state-icon">🤖</div>
-                    <div class="empty-state-title">Source-Grounded Study Assistant</div>
-                    <div class="empty-state-description" style="max-width: 540px; margin: 0 auto var(--spacing-lg);">
-                        Ask questions about your course content. The system retrieves relevant passages with PDF page, PowerPoint slide, and transcript timestamp citations.
-                    </div>
+                    <div class="empty-state-icon" aria-hidden="true">🤖</div>
                     {% if not materials %}
+                    <div class="empty-state-title">No learning materials available yet</div>
+                    <div class="empty-state-description" style="max-width: 540px; margin: 0 auto var(--spacing-lg);">
+                        Upload course materials to give the Tutor passages to search and cite in its answers.
+                    </div>
                         <a href="{{ url_for('materials') }}" class="btn btn-primary">Upload Materials First</a>
                     {% else %}
-                        <div style="display: flex; gap: var(--spacing-sm); justify-content: center; flex-wrap: wrap;">
-                            <span class="badge badge-success">Indexed Materials Ready</span>
-                        </div>
+                    <div class="empty-state-title">Ask the AI Tutor a question</div>
+                    <div class="empty-state-description" style="max-width: 540px; margin: 0 auto var(--spacing-lg);">
+                        The Tutor searches indexed passages and shows available citations. If it cannot find relevant material, try another question or target material.
+                    </div>
+                    <a href="{{ url_for('materials') }}" class="btn btn-secondary">Manage Learning Materials</a>
                     {% endif %}
                 </div>
             </div>
 
             <div class="chat-input-container">
+                <label class="visually-hidden" for="chatInput">Ask a question about your course material</label>
                 <input type="text" class="chat-input" id="chatInput" placeholder="Ask a question about your course material (e.g., 'What is data independence?')..." autocomplete="off">
-                <button class="btn btn-primary" id="sendButton">Ask</button>
+                <button class="btn btn-primary" id="sendButton" type="button">Ask</button>
             </div>
         </div>
     </div>

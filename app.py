@@ -381,6 +381,7 @@ def api_answer():
             "sources": [
                 {
                     "source_file": s.get("source_file"),
+                    **({"video_title": s["video_title"]} if s.get("video_title") else {}),
                     "page_number": s.get("page_number"),
                     **_source_location_response_fields(s),
                     "similarity_score": round(float(s.get("score", 0.0)), 4)

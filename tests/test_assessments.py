@@ -633,6 +633,15 @@ class TestAssessmentAPI(AssessmentTestBase):
                 self.assertNotIn(b"Adaptive Quiz", response.data)
                 self.assertNotIn(b'href="/quiz"', response.data)
 
+    def test_sidebar_toggle_exposes_accessible_navigation_state(self):
+        response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="primaryNavigation" inert', response.data)
+        self.assertIn(b'aria-label="Open navigation"', response.data)
+        self.assertIn(b'aria-expanded="false"', response.data)
+        self.assertIn(b'aria-controls="primaryNavigation"', response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,13 @@ import sqlite3
 from typing import List, Dict, Any, Optional, Tuple
 from ai.llm_provider import get_llm_provider, LLMProviderError, LLMConfigurationError
 from database import get_db_connection
-from rag.prompts import SYSTEM_PROMPT, build_user_prompt, get_source_location
+from rag.prompts import (
+    SYSTEM_PROMPT,
+    build_user_prompt,
+    format_source_citation,
+    get_source_display_name,
+    get_source_location,
+)
 
 
 _BRACKETED_REFERENCE = re.compile(r"\[([^\]\r\n]+)\]")
@@ -253,6 +259,13 @@ class RAGService:
                                     ELSE dc.location_type END AS location_type,
                                COALESCE(dc.location_value, CAST(dc.page_number AS TEXT))
                                    AS location_value,
+                               (SELECT NULLIF(TRIM(y.display_title), '')
+                                FROM youtube_lectures AS y
+                                WHERE y.transcript_material_id = m.id
+                                  AND m.file_type = 'transcript'
+                                  AND TRIM(COALESCE(y.display_title, '')) <> ''
+                                ORDER BY y.created_at DESC, y.id DESC
+                                LIMIT 1) AS video_title,
                                m.id AS joined_material_id
                         FROM document_chunks AS dc
                         JOIN materials AS m ON m.id = dc.material_id
@@ -283,7 +296,10 @@ class RAGService:
                 and str(row_location_value) == chunk["location_value"]
             )
             if matches:
-                validated.append(chunk)
+                validated_chunk = dict(chunk)
+                if row["video_title"]:
+                    validated_chunk["video_title"] = row["video_title"]
+                validated.append(validated_chunk)
         return validated
 
     def _validated_grounded_answer(self, output, retrieved_chunks):
@@ -338,7 +354,7 @@ class RAGService:
 
     @staticmethod
     def _format_chunk_citation(chunk):
-        return f"[{chunk['source_file']}, {chunk['location_type']} {chunk['location_value']}]"
+        return format_source_citation(chunk)
 
     def _extract_citations(
         self,
@@ -371,7 +387,9 @@ class RAGService:
             location_type, location_value = get_source_location(chunk)
             if location_value is None:
                 continue
-            citation_key = self._reference_key(source_file, location_type, location_value)
+            citation_key = self._reference_key(
+                get_source_display_name(chunk), location_type, location_value
+            )
             if citation_key not in references or citation_key in seen:
                 continue
 
@@ -387,6 +405,8 @@ class RAGService:
             if location_type in {"slide", "timestamp"}:
                 citation["location_type"] = location_type
                 citation["location_value"] = str(location_value)
+            if location_type == "timestamp" and chunk.get("video_title"):
+                citation["video_title"] = chunk["video_title"]
             citations.append(citation)
 
         return citations
@@ -413,6 +433,11 @@ class RAGService:
                 allowed_references.add(
                     self._reference_key(source_file, location_type, location_value)
                 )
+                display_name = get_source_display_name(chunk)
+                if display_name != source_file:
+                    allowed_references.add(
+                        self._reference_key(display_name, location_type, location_value)
+                    )
 
         def retain_if_retrieved(match):
             parsed = _TYPED_REFERENCE.fullmatch(match.group(1).strip())

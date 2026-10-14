@@ -6,17 +6,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebar = document.querySelector('.sidebar');
 
     if (mobileMenuToggle && sidebar) {
+        function setSidebarOpen(isOpen, restoreFocus = false) {
+            const isMobile = window.innerWidth <= 768;
+            const shouldBeOpen = isMobile && isOpen;
+
+            if (!shouldBeOpen
+                && (restoreFocus || sidebar.contains(document.activeElement))) {
+                mobileMenuToggle.focus();
+            }
+
+            sidebar.classList.toggle('open', shouldBeOpen);
+            sidebar.inert = isMobile && !shouldBeOpen;
+            mobileMenuToggle.setAttribute('aria-expanded', String(shouldBeOpen));
+            mobileMenuToggle.setAttribute(
+                'aria-label',
+                shouldBeOpen ? 'Close navigation' : 'Open navigation'
+            );
+        }
+
+        setSidebarOpen(false);
+
         mobileMenuToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('open');
+            setSidebarOpen(!sidebar.classList.contains('open'));
         });
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768) {
-                if (!sidebar.contains(e.target) && !mobileMenuToggle.contains(e.target)) {
-                    sidebar.classList.remove('open');
-                }
+            if (window.innerWidth <= 768 && sidebar.classList.contains('open')
+                && !sidebar.contains(e.target) && !mobileMenuToggle.contains(e.target)) {
+                setSidebarOpen(false);
             }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+                setSidebarOpen(false, true);
+            }
+        });
+
+        window.addEventListener('resize', function() {
+            setSidebarOpen(sidebar.classList.contains('open'));
         });
     }
 
@@ -246,8 +275,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendButton = document.getElementById('sendButton');
     const chatMessages = document.getElementById('chatMessages');
     const initialEmptyState = document.getElementById('initialEmptyState');
+    const chatAnnouncement = document.getElementById('chatAnnouncement');
 
     if (chatInput && sendButton && chatMessages) {
+        function announceChatUpdate(message) {
+            if (chatAnnouncement) {
+                chatAnnouncement.textContent = message;
+            }
+        }
+
         function removeInitialEmptyState() {
             if (initialEmptyState && initialEmptyState.parentNode) {
                 initialEmptyState.parentNode.removeChild(initialEmptyState);
@@ -428,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 data.citations.forEach((citation) => {
                     const citationBadge = document.createElement('span');
                     citationBadge.className = 'citation-badge';
-                    const fileText = citation.source_file || 'Unknown';
+                    const fileText = citation.video_title || citation.source_file || 'Unknown';
                     const locationType = citation.location_type === 'slide' ? 'slide'
                         : citation.location_type === 'timestamp' ? 'timestamp' : 'page';
                     const locationValue = citation.location_type === 'timestamp'
@@ -459,6 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sendButton.disabled = true;
 
             const loadingBubble = appendLoadingMessage();
+            announceChatUpdate('Searching course knowledge base for relevant passages.');
 
             try {
                 const payload = {
@@ -490,13 +527,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 if (!answerData || typeof answerData !== 'object' || Array.isArray(answerData)) {
-                    appendAssistantError('The answer service returned an invalid response. Please try again.');
+                    const message = 'The answer service returned an invalid response. Please try again.';
+                    appendAssistantError(message);
+                    announceChatUpdate(message);
                 } else {
                     const results = Array.isArray(answerData.results) ? answerData.results : [];
                     appendRetrievalResults({ results: results });
 
                     if (answerResponse.ok) {
                         appendGeneratedAnswer(answerData);
+                        const citationCount = Array.isArray(answerData.citations)
+                            ? answerData.citations.length : 0;
+                        const citationAnnouncement = citationCount
+                            ? ` ${citationCount} source ${citationCount === 1 ? 'citation' : 'citations'}.`
+                            : '';
+                        announceChatUpdate(answerData.insufficient_context
+                            ? `Insufficient study material. ${answerData.answer || 'The materials do not contain enough relevant information.'}${citationAnnouncement}`
+                            : `AI Tutor answer: ${answerData.answer || 'Response received.'}${citationAnnouncement}`);
                     } else if (results.some(item => item && typeof item === 'object' && !Array.isArray(item))) {
                         // Keep retrieved passages visible when answer generation fails.
                         const warningMsg = document.createElement('div');
@@ -507,15 +554,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         warningMsg.appendChild(warningText);
                         chatMessages.appendChild(warningMsg);
                         chatMessages.scrollTop = chatMessages.scrollHeight;
+                        announceChatUpdate('Answer generation is unavailable. Retrieved source passages are shown.');
                     } else {
-                        appendAssistantError(answerData.error || `Answer error (${answerResponse.status})`);
+                        const message = answerData.error || `Answer error (${answerResponse.status})`;
+                        appendAssistantError(message);
+                        announceChatUpdate(message);
                     }
                 }
             } catch (err) {
                 if (loadingBubble && loadingBubble.parentNode) {
                     loadingBubble.parentNode.removeChild(loadingBubble);
                 }
-                appendAssistantError('Network or connection error. Please try again.');
+                const message = 'Network or connection error. Please try again.';
+                appendAssistantError(message);
+                announceChatUpdate(message);
                 console.error('Search/answer request error:', err);
             } finally {
                 chatInput.disabled = false;

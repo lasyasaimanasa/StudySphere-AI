@@ -26,13 +26,21 @@ def get_source_location(source: dict):
     return location_type, location_value
 
 
+def get_source_display_name(source: dict) -> str:
+    """Use a saved lecture title for timestamped transcript references."""
+    location_type, _ = get_source_location(source)
+    video_title = source.get("video_title")
+    if location_type == "timestamp" and isinstance(video_title, str) and video_title.strip():
+        return video_title.strip()
+    return source.get("source_file") or "Unknown source"
+
+
 def format_source_citation(source: dict) -> str:
     """Format a passage locator as the citation shown to the Tutor model."""
     location_type, location_value = get_source_location(source)
-    filename = source.get("source_file") or "Unknown source"
     if location_value is None:
         location_value = "?"
-    return f"[{filename}, {location_type} {location_value}]"
+    return f"[{get_source_display_name(source)}, {location_type} {location_value}]"
 
 
 def build_user_prompt(query: str, retrieved_chunks: list) -> str:

@@ -15,7 +15,7 @@
         <div class="card"><h3>Recommended Next Step</h3>{% if progress.weak_topics %}<p>Review <strong>{{ progress.weak_topics[0].topic }}</strong>: {{ progress.weak_topics[0].accuracy }}% accuracy across {{ progress.weak_topics[0].answered_questions }} answers.</p>{% if progress.weak_topics[0].recommendations %}<p>Start with {{ progress.weak_topics[0].recommendations[0].source_file }}, {{ progress.weak_topics[0].recommendations[0].location_type }} {{ progress.weak_topics[0].recommendations[0].location_value }}.</p>{% else %}<p>{{ progress.weak_topics[0].recommendation_message }}</p>{% endif %}<a href="{{ url_for('progress') }}" class="btn btn-primary">See Revision Plan</a>{% else %}<p>No topics have enough evidence to need revision. Keep reviewing your learning materials to build reliable mastery data.</p>{% endif %}</div>
     </div>
     {% else %}
-    <div class="card empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">No assessment results yet</div><div class="empty-state-description">Your topic mastery and revision recommendations will appear here when assessment results are available.</div></div>
+    <div class="card empty-state"><div class="empty-state-icon" aria-hidden="true">📊</div><div class="empty-state-title">No assessment results yet</div><div class="empty-state-description">Your topic mastery and revision recommendations will appear here when assessment results are available.</div></div>
     {% endif %}
 </div>
 {% endblock %}

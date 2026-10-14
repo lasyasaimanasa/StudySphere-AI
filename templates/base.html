@@ -8,46 +8,43 @@
 </head>
 <body>
     <div class="app-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="primaryNavigation" inert>
             <div class="sidebar-header">
-                <h1 class="sidebar-logo">StudySphere AI</h1>
+                <div class="sidebar-logo">StudySphere AI</div>
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('dashboard') }}" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon" aria-hidden="true">📊</span>
                     <span class="nav-text">Dashboard</span>
                 </a>
                 <a href="{{ url_for('materials') }}" class="nav-item">
-                    <span class="nav-icon">📚</span>
+                    <span class="nav-icon" aria-hidden="true">📚</span>
                     <span class="nav-text">Materials</span>
                 </a>
                 <a href="{{ url_for('tutor') }}" class="nav-item">
-                    <span class="nav-icon">🤖</span>
+                    <span class="nav-icon" aria-hidden="true">🤖</span>
                     <span class="nav-text">AI Tutor</span>
                 </a>
                 <a href="{{ url_for('progress') }}" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon" aria-hidden="true">📈</span>
                     <span class="nav-text">Progress</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
-                    <span class="nav-text">Settings</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">
-                    <div class="user-avatar">👤</div>
+                    <div class="user-avatar" aria-hidden="true">📖</div>
                     <div class="user-info">
-                        <span class="user-name">Student</span>
-                        <span class="user-email">student@example.com</span>
+                        <span class="user-name">Study workspace</span>
+                        <span class="user-email">Local prototype</span>
                     </div>
                 </div>
-                <button class="logout-btn">Logout</button>
             </div>
         </aside>
 
         <main class="main-content">
-            <button class="mobile-menu-toggle" id="mobileMenuToggle">
+            <button class="mobile-menu-toggle" id="mobileMenuToggle"
+                    type="button" aria-label="Open navigation"
+                    aria-expanded="false" aria-controls="primaryNavigation">
                 <span></span>
                 <span></span>
                 <span></span>

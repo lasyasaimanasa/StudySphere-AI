@@ -234,6 +234,16 @@ class TestAnswerAPI(unittest.TestCase):
         self._add_chunk(21, 9, 'lecture_transcript.txt', 'transcript',
                         'A DBMS organizes, stores, and retrieves data.', 1,
                         'timestamp', '00:01:25', 'transcript')
+        connection = sqlite3.connect(self.database_path)
+        connection.execute(
+            """INSERT INTO youtube_lectures
+               (video_id, canonical_url, display_title, transcript_material_id)
+               VALUES (?, ?, ?, ?)""",
+            ('dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+             'Database Systems Lecture', 9),
+        )
+        connection.commit()
+        connection.close()
         rag_service = RAGService(
             embedding_service=embedding_service, database_path=self.database_path
         )
@@ -256,11 +266,17 @@ class TestAnswerAPI(unittest.TestCase):
         data = response.get_json()
         expected = {
             'source_file': 'lecture_transcript.txt',
+            'video_title': 'Database Systems Lecture',
             'page_number': 1,
             'location_type': 'timestamp',
             'location_value': '00:01:25',
         }
         self.assertEqual(data['citations'], [expected])
+        self.assertIn(
+            '[Database Systems Lecture, timestamp 00:01:25]',
+            data['answer'],
+        )
+        self.assertEqual(data['sources'][0]['video_title'], 'Database Systems Lecture')
         self.assertEqual(data['sources'][0]['location_type'], 'timestamp')
         self.assertEqual(data['sources'][0]['location_value'], '00:01:25')
         self.assertEqual(data['results'][0]['page_number'], 1)

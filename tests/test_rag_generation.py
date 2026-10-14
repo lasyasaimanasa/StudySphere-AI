@@ -95,6 +95,10 @@ class TestRAGGeneration(unittest.TestCase):
                 content TEXT NOT NULL, source_type TEXT NOT NULL, source_file TEXT NOT NULL,
                 page_number INTEGER NOT NULL, location_type TEXT NOT NULL, location_value TEXT
             );
+            CREATE TABLE youtube_lectures (
+                id INTEGER PRIMARY KEY, video_id TEXT NOT NULL, display_title TEXT,
+                transcript_material_id INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         connection.commit()
         connection.close()
@@ -347,6 +351,14 @@ class TestRAGGeneration(unittest.TestCase):
             21, 9, 0, chunk["content"], "lecture_transcript.txt", "transcript", 1,
             "timestamp", "00:01:25", "transcript",
         )
+        connection = sqlite3.connect(self.database_path)
+        connection.execute(
+            """INSERT INTO youtube_lectures
+               (video_id, display_title, transcript_material_id)
+               VALUES ('video1234567', 'Database Systems Lecture', 9)"""
+        )
+        connection.commit()
+        connection.close()
         self.assertIn(
             "[lecture_transcript.txt, timestamp 00:01:25]",
             build_user_prompt("What does a DBMS do?", [chunk]),
@@ -367,12 +379,16 @@ class TestRAGGeneration(unittest.TestCase):
 
         self.assertEqual(result["citations"], [{
             "source_file": "lecture_transcript.txt",
+            "video_title": "Database Systems Lecture",
             "page_number": 1,
             "location_type": "timestamp",
             "location_value": "00:01:25",
         }])
-        self.assertIn("[lecture_transcript.txt, timestamp 00:01:25]", result["answer"])
-        self.assertIn("[lecture_transcript.txt, timestamp 00:01:25]", result["answer"])
+        self.assertIn("[Database Systems Lecture, timestamp 00:01:25]", result["answer"])
+        self.assertIn(
+            "[Database Systems Lecture, timestamp 00:01:25]",
+            provider.generate.call_args.kwargs["prompt"],
+        )
     def test_material_filter_in_retrieval(self):
         """Test that material_id is passed to retrieval."""
         mock_llm = MockLLMProvider()
